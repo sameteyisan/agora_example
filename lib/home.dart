@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class Home extends StatefulWidget {
-  Home({Key? key}) : super(key: key);
+  const Home({Key? key}) : super(key: key);
 
   @override
   State<Home> createState() => _HomeState();
@@ -17,10 +17,14 @@ class _HomeState extends State<Home> {
   String appId = "bacf3563e31a40d8ac493f7cab4957ec";
 
   String token =
-      "006bacf3563e31a40d8ac493f7cab4957ecIADgCqLZ7giMjxzz6BotrOCJy4x9knZFznrtwMXchgrjNNLwFaoAAAAAEABJ0h4OFTL9YQEAAQAVMv1h";
+      "006bacf3563e31a40d8ac493f7cab4957ecIACCyHaGI8Oo7tfd6wiDobQp9Gg5OdbD8Sqp8Xbwxku1EKMlb/oAAAAAEABJ0h4Oyyb+YQEAAQDLJv5h";
+  String channelName = "Event";
 
   List<int> remoteIdList = [];
-  int? presenterIdx;
+  int? presenterId;
+
+  bool audioEnabled = false;
+  bool videoEnabled = false;
 
   late RtcEngine _engine;
   @override
@@ -32,7 +36,27 @@ class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Agora Test")),
+      appBar: AppBar(
+        title: const Text("Agora Test"),
+        actions: [
+          IconButton(
+            onPressed: () async {
+              audioEnabled = !audioEnabled;
+              await _engine.enableLocalAudio(audioEnabled);
+              setState(() {});
+            },
+            icon: Icon(audioEnabled ? Icons.mic : Icons.mic_off),
+          ),
+          IconButton(
+            onPressed: () async {
+              videoEnabled = !videoEnabled;
+              await _engine.enableLocalVideo(videoEnabled);
+              setState(() {});
+            },
+            icon: Icon(videoEnabled ? Icons.videocam : Icons.videocam_off),
+          ),
+        ],
+      ),
       body: Stack(
         children: [
           Center(
@@ -42,10 +66,20 @@ class _HomeState extends State<Home> {
             alignment: Alignment.bottomCenter,
             child: Row(
               children: remoteIdList.map((id) {
-                return SizedBox(
-                  width: 100,
-                  height: 100,
-                  child: _getVideo(id),
+                return GestureDetector(
+                  onTap: () {
+                    if (presenterId != null) {
+                      remoteIdList.add(presenterId!);
+                    }
+                    remoteIdList.remove(id);
+                    presenterId = id;
+                    setState(() {});
+                  },
+                  child: SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: _getVideo(id),
+                  ),
                 );
               }).toList(),
             ),
@@ -56,11 +90,11 @@ class _HomeState extends State<Home> {
   }
 
   Widget _bigVideo() {
-    if (presenterIdx != null) {
-      return _getVideo(remoteIdList[presenterIdx!]);
+    if (presenterId != null) {
+      return _getVideo(presenterId!);
     } else {
       return const Text(
-        'Please wait for the presenter.',
+        'Click on any camera to make it big.',
         textAlign: TextAlign.center,
       );
     }
@@ -77,7 +111,11 @@ class _HomeState extends State<Home> {
     await [Permission.microphone, Permission.camera].request();
 
     _engine = await RtcEngine.create(appId);
+    //await _engine.enableAudio();
     await _engine.enableVideo();
+
+    await _engine.enableLocalVideo(false);
+    await _engine.enableLocalAudio(false);
     _engine.setEventHandler(
       RtcEngineEventHandler(
         joinChannelSuccess: (String channel, int uid, int elapsed) {
@@ -98,9 +136,17 @@ class _HomeState extends State<Home> {
             remoteIdList.remove(uid);
           });
         },
+        userMuteAudio: (int uid, bool isMuted) {
+          print("remote user $uid audio mute status : $isMuted");
+          setState(() {});
+        },
+        userMuteVideo: (int uid, bool isMuted) {
+          print("remote user $uid video mute status : $isMuted");
+          setState(() {});
+        },
       ),
     );
 
-    await _engine.joinChannel(token, "OneOnOne", null, 0);
+    await _engine.joinChannel(token, channelName, null, 0);
   }
 }
